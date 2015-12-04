@@ -12,6 +12,8 @@ cmd:option('--momentum', 0.9, 'momentum')
 cmd:option('--minLR', 0.00001, 'minimum learning rate')
 cmd:option('--saturateEpoch', 20, 'epoch at which linear decayed LR will reach minLR')
 cmd:option('--maxEpoch', 50, 'maximum number of epochs to run')
+cmd:option('--batchSize', 25, 'number of inputs per batch')
+cmd:option('--maxExampleLen', 25, 'max length of sentences used in training')
 
 cmd:text()
 options = cmd:parse(arg)
@@ -20,18 +22,22 @@ if options.dataset == 0 then
   options.dataset = nil
 end
 
+-- Check for LookupTable
+assert(options.batchSize <= options.maxExampleLen)
+
 -- Data
 print("-- Loading dataset")
 dataset = e.DataSet("data/cornell_movie_dialogs_" .. (options.dataset or "full") .. ".t7",
                     e.CornellMovieDialogs("data/cornell_movie_dialogs"),
                     {
                       loadFirst = options.dataset,
-                      minWordFreq = options.minWordFreq
+                      minWordFreq = options.minWordFreq,
+                      maxExampleLen = options.maxExampleLen
                     })
 
 print("\nDataset stats:")
 print("  Vocabulary size: " .. dataset.wordsCount)
-print("         Examples: " .. #dataset.examples)
+print("         Examples: " .. #dataset)
 
 -- Model
 model = e.Seq2Seq(dataset.wordsCount, options.hiddenSize)
@@ -59,18 +65,18 @@ for epoch = 1, options.maxEpoch do
   print("\n-- Epoch " .. epoch .. " / " .. options.maxEpoch)
   print("")
 
-  local errors = torch.Tensor(#dataset.examples)
+  local errors = torch.Tensor(#dataset)
   local timer = torch.Timer()
 
-  for i,example in ipairs(dataset.examples) do
-    local err = model:train(unpack(example))
+  for i, inputs, targets in dataset:batches(options.batchSize) do
+    local err = model:train(inputs, targets)
     errors[i] = err
-    xlua.progress(i, #dataset.examples)
+    xlua.progress(i, #dataset)
   end
 
   timer:stop()
 
-  print("\nFinished in " .. timer:time().real .. ' seconds. ' .. (#dataset.examples / timer:time().real) .. ' examples/sec.')
+  print("\nFinished in " .. timer:time().real .. ' seconds. ' .. (#dataset / timer:time().real) .. ' examples/sec.')
   print("\nEpoch stats:")
   print("           LR= " .. model.learningRate)
   print("  Errors: min= " .. errors:min())

@@ -39,7 +39,8 @@ function DataSet:load(filename, loader)
   if path.exists(filename) then
     print("Loading from " .. filename .. " ...")
     local data = torch.load(filename)
-    self.examples = data.examples
+    self.inputs = data.inputs
+    self.targets = data.targets
     self.word2id = data.word2id
     self.id2word = data.id2word
     self.wordsCount = data.wordsCount
@@ -51,7 +52,8 @@ function DataSet:load(filename, loader)
     self:visit(loader:load())
     print("Writing " .. filename .. " ...")
     torch.save(filename, {
-      examples = self.examples,
+      inputs = self.inputs,
+      targets = self.targets,
       word2id = self.word2id,
       id2word = self.id2word,
       wordsCount = self.wordsCount,
@@ -63,15 +65,37 @@ function DataSet:load(filename, loader)
 end
 
 function DataSet:cuda()
-  for i,example in ipairs(self.examples) do
-    example[1] = example[1]:cuda()
-    example[2] = example[2]:cuda()
+  self.inputs = self.inputs:cuda()
+  self.targets = self.targets:cuda()
+end
+
+function DataSet:__len()
+  return self.inputs:size(1)
+end
+
+function DataSet:batches(size)
+  local pos = 1
+
+  return function()
+    if pos > #self then
+      return nil
+    end
+
+    local len = math.min(size, #self - pos + 1)
+    local i = pos
+    pos = pos + len
+
+    return i, self.inputs:sub(i, i + len - 1), self.targets:sub(i, i + len - 1)
   end
 end
+
+-- Functions for building the dataset
+-- TODO refactor into a separate class?
 
 function DataSet:visit(conversations)
   -- Table for keeping track of word frequency
   self.wordFreq = {}
+  self.examples = {}
 
   -- Add magic tokens
   self.goToken = self:makeWordId("<go>") -- Start of sequence
@@ -97,13 +121,38 @@ function DataSet:visit(conversations)
 
   print("-- Removing low frequency words")
 
-  for i, datum in ipairs(self.examples) do
-    self:removeLowFreqWords(datum[1])
-    self:removeLowFreqWords(datum[2])
+  for i, example in ipairs(self.examples) do
+    self:removeLowFreqWords(example[1])
+    self:removeLowFreqWords(example[2])
     xlua.progress(i, #self.examples)
   end
 
-  self.wordFreq = {}
+  self.wordFreq = nil
+
+  print("-- Tensorising")
+
+  self.inputs = torch.Tensor(#self.examples, self.maxExampleLen)
+  self.targets = torch.Tensor(#self.examples, self.maxExampleLen)
+
+  local function pad(t)
+    if t:size(1) == self.maxExampleLen then
+      return t
+    end
+
+    local newTensor = t:clone()
+    newTensor:resize(self.maxExampleLen)
+    local indexes = torch.range(t:size(1)+1, self.maxExampleLen):long()
+    newTensor:indexFill(1, indexes, 0)
+    return newTensor
+  end
+
+  for i, example in ipairs(self.examples) do
+    self.inputs[i]:copy(pad(example[1]))
+    self.targets[i]:copy(pad(example[2]))
+    xlua.progress(i, #self.examples)
+  end
+
+  self.examples = nil
 end
 
 function DataSet:removeLowFreqWords(input)

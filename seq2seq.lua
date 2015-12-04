@@ -59,11 +59,18 @@ end
 
 function Seq2Seq:train(input, target)
   local encoderInput = input
-  local decoderInput = target:sub(1, -2)
-  local decoderTarget = target:sub(2, -1)
+  local decoderInput, decoderTarget
+
+  if input:dim() == 1 then
+    decoderInput = target:sub(1, -2)
+    decoderTarget = target:sub(2, -1)
+  else -- batch
+    decoderInput = target:sub(1,-1, 1, -2)
+    decoderTarget = target:sub(1,-1, 2, -1)
+  end
 
   -- TODO pad & batch data
-  -- local encoderInput = torch.cat(input, input, 2):transpose(1, 2)
+  -- local encoderInput = torch.cat(input, input, input, 2):transpose(1, 2)
   -- local decoderInput = torch.cat(target:sub(1, -2), target:sub(1, -2), 2):transpose(1, 2)
   -- local decoderTarget = torch.cat(target:sub(2, -1), target:sub(2, -1), 2):transpose(1, 2)
 
