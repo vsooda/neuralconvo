@@ -10,12 +10,12 @@ Then flips it around and get the dialog from the other character's perspective:
 Also builds the vocabulary.
 ]]-- 
 
-local DataSet = torch.class("neuralconvo.DataSet")
+local Stc = torch.class("neuralconvo.Stc")
 local xlua = require "xlua"
 local tokenizer = require "tokenizer"
 local list = require "pl.List"
 
-function DataSet:__init(loader, options)
+function Stc:__init(dir)
   options = options or {}
 
   self.examplesFilename = "data/examples.t7"
@@ -33,11 +33,12 @@ function DataSet:__init(loader, options)
   self.word2id = {}
   self.id2word = {}
   self.wordsCount = 0
+  self.dir = dir
 
-  self:load(loader)
+  self:load()
 end
 
-function DataSet:load(loader)
+function Stc:load()
   local filename = "data/vocab.t7"
 
   if path.exists(filename) then
@@ -52,7 +53,7 @@ function DataSet:load(loader)
     self.examplesCount = data.examplesCount
   else
     print("" .. filename .. " not found")
-    self:visit(loader:load())
+    self:visitStc()
     print("Writing " .. filename .. " ...")
     torch.save(filename, {
       word2id = self.word2id,
@@ -66,32 +67,68 @@ function DataSet:load(loader)
   end
 end
 
-function DataSet:visit(conversations)
+function Stc:visitStc()
+    local postName = self.dir .. "mini_post_filtered"
+    local commentName = self.dir .. "mini_comment_filtered"
+    print(postName)
+    local ppost = assert(io.open(postName, 'r'))
+    local pcomment = assert(io.open(commentName, 'r'))
+    local conversations = {}
+    while(1) do
+        local conversation = {}
+        local post = ppost:read("*line")
+        local comment = pcomment:read("*line")
+        if (post == nil or comment == nil) then
+            break;
+        end
+        table.insert(conversation, post)
+        table.insert(conversation, comment)
+        print(conversation)
+        table.insert(conversations, conversation)
+    end
+    self.visit(conversations)
+end
+
+function Stc:makeWordIds(word)
+  print("in make word")
+  word = word:lower()
+
+  local id = self.word2id[word]
+
+  if id then
+    self.wordFreq[word] = self.wordFreq[word] + 1
+  else
+    self.wordsCount = self.wordsCount + 1
+    id = self.wordsCount
+    self.id2word[id] = word
+    self.word2id[word] = id
+    self.wordFreq[word] = 1
+  end
+
+  return id
+end
+
+
+function Stc:visit(conversations)
   -- Table for keeping track of word frequency
   self.wordFreq = {}
   self.examples = {}
 
+  print("in visit")
   -- Add magic tokens
-  self.goToken = self:makeWordId("<go>") -- Start of sequence
-  self.eosToken = self:makeWordId("<eos>") -- End of sequence
-  self.unknownToken = self:makeWordId("<unknown>") -- Word dropped from vocabulary
+  self.goToken = self:makeWordIds("<go>") -- Start of sequence
+  self.eosToken = self:makeWordIds("<eos>") -- End of sequence
+  self.unknownToken = self:makeWordIds("<unknown>") -- Word dropped from vocabulary
 
   print("-- Pre-processing data")
 
   local total = self.loadFirst or #conversations * 2
 
   for i, conversation in ipairs(conversations) do
-    --print(conversation)
+    print(conversation)
     if i > total then break end
     self:visitConversation(conversation)
     xlua.progress(i, total)
-  end
-
-  -- Revisit from the perspective of 2nd character
-  for i, conversation in ipairs(conversations) do
-    if #conversations + i > total then break end
-    self:visitConversation(conversation, 2)
-    xlua.progress(#conversations + i, total)
   end
 
   print("-- Removing low frequency words")
@@ -111,7 +148,7 @@ function DataSet:visit(conversations)
   collectgarbage()
 end
 
-function DataSet:writeExamplesToFile()
+function Stc:writeExamplesToFile()
   print("Writing " .. self.examplesFilename .. " ...")
   local file = torch.DiskFile(self.examplesFilename, "w")
 
@@ -125,7 +162,7 @@ function DataSet:writeExamplesToFile()
   file:close()
 end
 
-function DataSet:batches(size)
+function Stc:batches(size)
   local file = torch.DiskFile(self.examplesFilename, "r")
   file:quiet()
   local done = false
@@ -151,7 +188,7 @@ function DataSet:batches(size)
   end
 end
 
-function DataSet:removeLowFreqWords(input)
+function Stc:removeLowFreqWords(input)
   for i = 1, input:size(1) do
     local id = input[i]
     local word = self.id2word[id]
@@ -170,7 +207,7 @@ function DataSet:removeLowFreqWords(input)
   end
 end
 
-function DataSet:visitConversation(lines, start)
+function Stc:visitConversation(lines, start)
   start = start or 1
 
   for i = start, #lines, 2 do
@@ -194,7 +231,7 @@ function DataSet:visitConversation(lines, start)
   end
 end
 
-function DataSet:visitText(text, additionalTokens)
+function Stc:visitText(text, additionalTokens)
   local words = {}
   additionalTokens = additionalTokens or 0
 
@@ -203,7 +240,7 @@ function DataSet:visitText(text, additionalTokens)
   end
 
   for t, word in tokenizer.tokenize(text) do
-    table.insert(words, self:makeWordId(word))
+    table.insert(words, self:makeWordIds(word))
     -- Only keep the first sentence
     if t == "endpunct" or #words >= self.maxExampleLen - additionalTokens then
       break
@@ -217,20 +254,3 @@ function DataSet:visitText(text, additionalTokens)
   return words
 end
 
-function DataSet:makeWordId(word)
-  word = word:lower()
-
-  local id = self.word2id[word]
-
-  if id then
-    self.wordFreq[word] = self.wordFreq[word] + 1
-  else
-    self.wordsCount = self.wordsCount + 1
-    id = self.wordsCount
-    self.id2word[id] = word
-    self.word2id[word] = id
-    self.wordFreq[word] = 1
-  end
-
-  return id
-end

@@ -13,6 +13,7 @@ cmd:option('--minLR', 0.00001, 'minimum learning rate')
 cmd:option('--saturateEpoch', 20, 'epoch at which linear decayed LR will reach minLR')
 cmd:option('--maxEpoch', 50, 'maximum number of epochs to run')
 cmd:option('--batchSize', 1000, 'number of examples to load at once')
+cmd:option('--prepare', false, 'only prepare the dataset')
 
 cmd:text()
 options = cmd:parse(arg)
@@ -23,15 +24,22 @@ end
 
 -- Data
 print("-- Loading dataset")
-dataset = neuralconvo.DataSet(neuralconvo.CornellMovieDialogs("data/cornell_movie_dialogs"),
-                    {
-                      loadFirst = options.dataset,
-                      minWordFreq = options.minWordFreq
-                    })
+--dataset = neuralconvo.DataSet(neuralconvo.CornellMovieDialogs("data/cornell_movie_dialogs"),
+--                    {
+--                      loadFirst = options.dataset,
+--                      minWordFreq = options.minWordFreq
+--                    })
+
+dataset = neuralconvo.Stc("/home/sooda/data/stc/repos/")
 
 print("\nDataset stats:")
 print("  Vocabulary size: " .. dataset.wordsCount)
 print("         Examples: " .. dataset.examplesCount)
+
+if options.prepare == true then
+    print("\n prepare dataset done, exit")
+    return
+end
 
 -- Model
 model = neuralconvo.Seq2Seq(dataset.wordsCount, options.hiddenSize)
