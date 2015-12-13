@@ -36,6 +36,10 @@ print("\nDataset stats:")
 print("  Vocabulary size: " .. dataset.wordsCount)
 print("         Examples: " .. dataset.examplesCount)
 
+for i = 1, dataset.wordsCount do
+    print(dataset.id2word[i])
+end
+
 if options.prepare == true then
     print("\n prepare dataset done, exit")
     return

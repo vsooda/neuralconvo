@@ -83,14 +83,13 @@ function Stc:visitStc()
         end
         table.insert(conversation, post)
         table.insert(conversation, comment)
-        print(conversation)
+        --print(conversation)
         table.insert(conversations, conversation)
     end
-    self.visit(conversations)
+    self:visit(conversations)
 end
 
 function Stc:makeWordIds(word)
-  print("in make word")
   word = word:lower()
 
   local id = self.word2id[word]
@@ -121,12 +120,10 @@ function Stc:visit(conversations)
   self.unknownToken = self:makeWordIds("<unknown>") -- Word dropped from vocabulary
 
   print("-- Pre-processing data")
-
-  local total = self.loadFirst or #conversations * 2
+  total = #conversations
 
   for i, conversation in ipairs(conversations) do
     print(conversation)
-    if i > total then break end
     self:visitConversation(conversation)
     xlua.progress(i, total)
   end
@@ -207,16 +204,15 @@ function Stc:removeLowFreqWords(input)
   end
 end
 
-function Stc:visitConversation(lines, start)
-  start = start or 1
+function Stc:visitConversation(conversation)
 
-  for i = start, #lines, 2 do
-    local input = lines[i]
-    local target = lines[i+1]
+    local input, target = unpack(conversation)
+    print(input)
+    print(target)
 
     if target then
-      local inputIds = self:visitText(input.text)
-      local targetIds = self:visitText(target.text, 2)
+      local inputIds = self:visitText(input)
+      local targetIds = self:visitText(target)
 
       if inputIds and targetIds then
         -- Revert inputs
@@ -228,7 +224,6 @@ function Stc:visitConversation(lines, start)
         table.insert(self.examples, { torch.IntTensor(inputIds), torch.IntTensor(targetIds) })
       end
     end
-  end
 end
 
 function Stc:visitText(text, additionalTokens)
@@ -239,8 +234,12 @@ function Stc:visitText(text, additionalTokens)
     return
   end
 
+  print(text)
   for t, word in tokenizer.tokenize(text) do
-    table.insert(words, self:makeWordIds(word))
+    id = self:makeWordIds(word)
+    print(id, word)
+    table.insert(words, id)
+    --table.insert(words, self:makeWordIds(word))
     -- Only keep the first sentence
     if t == "endpunct" or #words >= self.maxExampleLen - additionalTokens then
       break
