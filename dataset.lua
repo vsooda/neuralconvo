@@ -50,6 +50,7 @@ function DataSet:load(loader)
     self.eosToken = data.eosToken
     self.unknownToken = data.unknownToken
     self.examplesCount = data.examplesCount
+    print(self.word2id)
   else
     print("" .. filename .. " not found")
     self:visit(loader:load())

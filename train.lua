@@ -37,7 +37,7 @@ print("  Vocabulary size: " .. dataset.wordsCount)
 print("         Examples: " .. dataset.examplesCount)
 
 for i = 1, dataset.wordsCount do
-    print(dataset.id2word[i])
+    print(i, dataset.id2word[i])
 end
 
 if options.prepare == true then

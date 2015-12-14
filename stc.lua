@@ -32,16 +32,22 @@ function Stc:__init(dir)
   self.examples = {}
   self.word2id = {}
   self.id2word = {}
+  self.wordFreq = {}
   self.wordsCount = 0
+  self.examplesCount = 0
   self.dir = dir
 
+  self.loadFromFile = true
   self:load()
+
 end
+
 
 function Stc:load()
   local filename = "data/vocab.t7"
 
-  if path.exists(filename) then
+  --if path.exists(filename) then
+  if nil then
     print("Loading vocabulary from " .. filename .. " ...")
     local data = torch.load(filename)
     self.word2id = data.word2id
@@ -53,7 +59,14 @@ function Stc:load()
     self.examplesCount = data.examplesCount
   else
     print("" .. filename .. " not found")
-    self:visitStc()
+    if self.loadFromFile then
+        print("load from file")
+        self:visitFile()    
+        self:setFileWordId()
+    else
+        local conversations = self:visitStc()
+        self:visit(conversations)
+    end
     print("Writing " .. filename .. " ...")
     torch.save(filename, {
       word2id = self.word2id,
@@ -67,9 +80,80 @@ function Stc:load()
   end
 end
 
+function Stc:visitFile()
+   self.goToken = "#START#" 
+   self.eosToken = "#END#"
+   self.unknownToken = "#UNK#"  
+
+   local conversations = self:visitStc()
+   for i, conversation in ipairs(conversations) do
+        local input, target = unpack(conversation)
+        assert(input ~= "");
+        assert(target ~= "");
+
+        local inputIds = {}
+        --print(input)
+        for word in string.gmatch(input, "[^%s]+") do
+            table.insert(inputIds, word)
+        end
+        --print("input: ", inputIds)
+        --for t, word in tokenizer:tokenize(input) do
+        --    table.insert(inputIds, word)
+        --end
+        local targetIds = {}
+        --print(target)
+        for word in string.gmatch(target, "[^%s]+") do
+            table.insert(targetIds, word)
+        end
+        --for t, word in tokenizer:tokenize(target) do
+        --    table.insert(targetIds, word)
+        --end
+
+        --print("target: ", targetIds)
+        table.insert(self.examples, { torch.IntTensor(inputIds), torch.IntTensor(targetIds) })
+   end
+
+   self.examplesCount = #self.examples
+   print("examples count: ", self.examplesCount)
+   self:writeExamplesToFile()
+   self.examples = nil
+
+end
+
+function Stc:setFileWordId()
+    vocabName = self.dir .. "vocab"
+    print("vocabName: ", vocabName)
+    local pvocab = assert(io.open(vocabName, 'r'))
+
+    --self.id2word[1] = "#START#"
+    --self.word2id["#START#"] = 1
+    --self.id2word[2] = "#END#"
+    --self.word2id["#END#"] = 2
+    --self.id2word[3] = "#UNK#"
+    --self.word2id["#UNK#"] = 3
+
+    self.wordsCount = 0
+    local index = 1
+    while(1) do
+        local v = pvocab:read("*line")
+        if (v == nil) then
+            break
+        end
+        print("line: ", v)
+        self.wordsCount = self.wordsCount + 1
+        index = self.wordsCount
+        self.id2word[index] = v
+        self.word2id[v] = index
+        self.wordFreq[v] = 5
+        print(index, v)
+    end
+end
+
 function Stc:visitStc()
-    local postName = self.dir .. "mini_post_filtered"
-    local commentName = self.dir .. "mini_comment_filtered"
+    --local postName = self.dir .. "mini_post_filtered"
+    --local commentName = self.dir .. "mini_comment_filtered"
+    local postName = self.dir .. "mini_post_index"
+    local commentName = self.dir .. "mini_comment_index"
     print(postName)
     local ppost = assert(io.open(postName, 'r'))
     local pcomment = assert(io.open(commentName, 'r'))
@@ -86,7 +170,8 @@ function Stc:visitStc()
         --print(conversation)
         table.insert(conversations, conversation)
     end
-    self:visit(conversations)
+    --self:visit(conversations)
+    return conversations
 end
 
 function Stc:makeWordIds(word)
