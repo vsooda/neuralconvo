@@ -81,9 +81,12 @@ function Stc:load()
 end
 
 function Stc:visitFile()
-   self.goToken = "#START#" 
-   self.eosToken = "#END#"
-   self.unknownToken = "#UNK#"  
+   --self.goToken = "#START#" 
+   --self.eosToken = "#END#"
+   --self.unknownToken = "#UNK#"  
+   self.goToken = 1
+   self.eosToken = 2
+   self.unknownToken = 3
 
    local conversations = self:visitStc()
    for i, conversation in ipairs(conversations) do

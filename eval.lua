@@ -38,13 +38,18 @@ end
 function say(text)
   local wordIds = {}
 
-  for t, word in tokenizer.tokenize(text) do
+--  for t, word in tokenizer.tokenize(text) do
+
+  for word in string.gmatch(text, "[^%s]+") do
     local id = dataset.word2id[word:lower()] or dataset.unknownToken
+    --print(word, id)
     table.insert(wordIds, id)
   end
 
   local input = torch.Tensor(list.reverse(wordIds))
+  --print("input: ", input)
   local output = model:eval(input)
+  --print(output)
 
   print(">> " .. tokenizer.join(t2w(torch.Tensor(output))))
 end

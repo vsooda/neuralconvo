@@ -61,6 +61,9 @@ function Seq2Seq:train(input, target)
   local encoderInput = input
   local decoderInput = target:sub(1, -2)
   local decoderTarget = target:sub(2, -1)
+  --print("encodeInput", encoderInput)
+  --print("decoderInput", decoderInput)
+  --print("decoderTarget", decoderTarget)
 
   -- Forward pass
   self.encoder:forward(encoderInput)
